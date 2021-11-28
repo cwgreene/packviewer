@@ -1,0 +1,21 @@
+Packfile:
+    header:
+        magic:
+            length: 4
+            value: "PACK"
+        version:
+            length: 4
+            values: [2,3]
+            endian: NETWORK
+        count:
+            length: 4
+            endian: NETWORK
+    entries:
+        type: 
+            length: 3
+        size:
+            length:
+                min_read: 1
+                expand_rule: MSB_VAR_8
+        data:
+            length: $self.entries.size
