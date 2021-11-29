@@ -89,8 +89,20 @@ def read_size(bitstream, continuation, initial_size=4):
         all_bits = next_bits + all_bits
     return bits_to_num(all_bits)
 
+def read_ofs_size(bitstream, continuation, initial_size=7):
+    initial = bitstream.read(initial_size)
+    all_bits = initial
+    s = 0
+    while continuation:
+        continuation = bitstream.read(1)[0]
+        next_bits = bitstream.read(7)
+        all_bits = all_bits + next_bits
+        s = 2**7*s + 2**7
+    return bits_to_num(all_bits) + s
+
 def read_object(bs):
     bitstream = Bitstream(bs)
+    pos = bs.tell()
     continuation = bitstream.read(1)[0]
     obj_type = OBJ_TYPES[bits_to_num(bitstream.read(3))]
     size = read_size(bitstream, continuation)
@@ -103,7 +115,7 @@ def read_object(bs):
     elif obj_type == "OBJ_OFS_DELTA":
         bitstream = Bitstream(bs)
         c = bitstream.read(1)
-        offset = read_size(bitstream, 1, 7)
+        offset = read_ofs_size(bitstream, 1, 7)
         data["offset"] = offset
     else:
         pass
@@ -111,7 +123,7 @@ def read_object(bs):
     decomp = zlib.decompressobj()
     data["compressed"] = decomp.decompress(data_raw)
     bs.seek(bs.tell()-len(decomp.unused_data))
-    return (obj_type, size, data)
+    return (obj_type, size, data, pos)
 
 
 def checksum(bs):
@@ -166,14 +178,15 @@ def main():
         res = read_packfile(packfile)
     print(res[0])
     for obj in res[1]:
+        print("POS", obj[3])
         print("TYPE:", obj[0])
         print("SIZE:", obj[1])
         if obj[0] == "OBJ_TREE":
             print(parse_tree(obj[2]["compressed"]))
         elif obj[0] == OBJ_REF_DELTA:
-            print(obj[2]["compressed"])
+            print(obj[2])
         elif obj[0] == OBJ_OFS_DELTA:
-            print(obj[2]["compressed"])
+            print(obj[2])
         else:
             print("Data:\n", obj[2]["compressed"].decode("latin1"), sep="")
     print("sha", binascii.hexlify(res[2]), binascii.hexlify(res[3]))
