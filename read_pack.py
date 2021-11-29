@@ -3,6 +3,7 @@ import hashlib
 import struct
 import zlib
 import binascii
+import io
 
 OBJ_OFS_DELTA = "OBJ_OFS_DELTA"
 OBJ_REF_DELTA = "OBJ_REF_DELTA"
@@ -169,6 +170,49 @@ def parse_tree(blob_tree):
         i += 20
     return tree
 
+OP_COPY = 1
+OP_ADD = 0
+
+def parse_delta(delta_data):
+    operations = []
+    length = len(delta_data)
+    delta_data = io.BytesIO(delta_data)
+
+    while delta_data.tell() < length:
+        bitstream = Bitstream(delta_data)
+        bits = bitstream.read(8)
+        op_type = bits[0]
+        meta = bits[1:8]
+        print(meta)
+        assert(bitstream.buffer == [])
+        if op_type == OP_COPY:
+            offsets = []
+            sizes = []
+            copy_start = 0
+            metar = list(reversed(meta))
+            for i, b in enumerate(metar[:4]):
+                if b == 1:
+                    sz = delta_data.read(1)[0]
+                    copy_start += 256**i * sz
+                    offsets.append(sz)
+                else:
+                    offsets.append(0)
+            size = 0
+            for i, b in enumerate(metar[4:]):
+                if b == 1:
+                    sz = delta_data.read(1)[0]
+                    size += 256**i * sz
+                    sizes.append(sz)
+                else:
+                    sizes.append(0)
+            operations.append(["OP_COPY", meta, offsets, sizes, copy_start, size])
+        elif op_type == OP_ADD:
+            data_size = bits_to_num(meta)
+            append_data = delta_data.read(data_size)
+            print(append_data)
+            operations.append(["OP_ADD", meta, data_size, append_data])
+    return operations
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("file")
@@ -184,9 +228,9 @@ def main():
         if obj[0] == "OBJ_TREE":
             print(parse_tree(obj[2]["compressed"]))
         elif obj[0] == OBJ_REF_DELTA:
-            print(obj[2])
+            print(obj[2], parse_delta(obj[2]["compressed"]))
         elif obj[0] == OBJ_OFS_DELTA:
-            print(obj[2])
+            print(obj[2], parse_delta(obj[2]["compressed"]))
         else:
             print("Data:\n", obj[2]["compressed"].decode("latin1"), sep="")
     print("sha", binascii.hexlify(res[2]), binascii.hexlify(res[3]))
