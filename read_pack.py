@@ -88,6 +88,7 @@ def read_size(bitstream, continuation, initial_size=4):
         continuation = bitstream.read(1)[0]
         next_bits = bitstream.read(7)
         all_bits = next_bits + all_bits
+        assert(bitstream.buffer == [])
     return bits_to_num(all_bits)
 
 def read_ofs_size(bitstream, continuation, initial_size=7):
@@ -107,22 +108,23 @@ def read_object(bs):
     continuation = bitstream.read(1)[0]
     obj_type = OBJ_TYPES[bits_to_num(bitstream.read(3))]
     size = read_size(bitstream, continuation)
-
+    assert bitstream.buffer == []
     data = {}
     # what to do next depends on the type
-    if obj_type == "OBJ_REF_DELTA":
+    if obj_type == OBJ_REF_DELTA:
         base_obj  = bs.read(20)
         data["base_obj"] = base_obj
-    elif obj_type == "OBJ_OFS_DELTA":
+    elif obj_type == OBJ_OFS_DELTA:
         bitstream = Bitstream(bs)
-        c = bitstream.read(1)
-        offset = read_ofs_size(bitstream, 1, 7)
+        c = bitstream.read(1)[0]
+        offset = read_ofs_size(bitstream, c, 7)
         data["offset"] = offset
     else:
         pass
     data_raw = bs.read()
+    print(data_raw)
     decomp = zlib.decompressobj()
-    data["compressed"] = decomp.decompress(data_raw)
+    data["compressed"] = decomp.decompress(data_raw, max_length=size)
     bs.seek(bs.tell()-len(decomp.unused_data))
     return (obj_type, size, data, pos)
 
