@@ -122,7 +122,6 @@ def read_object(bs):
     else:
         pass
     data_raw = bs.read()
-    print(data_raw)
     decomp = zlib.decompressobj()
     data["compressed"] = decomp.decompress(data_raw, max_length=size)
     bs.seek(bs.tell()-len(decomp.unused_data))
@@ -185,13 +184,12 @@ def parse_delta(delta_data):
         bits = bitstream.read(8)
         op_type = bits[0]
         meta = bits[1:8]
-        print(meta)
         assert(bitstream.buffer == [])
         if op_type == OP_COPY:
             offsets = []
             sizes = []
             copy_start = 0
-            metar = list(reversed(meta))
+            metar = (meta)
             for i, b in enumerate(metar[:4]):
                 if b == 1:
                     sz = delta_data.read(1)[0]
@@ -211,7 +209,6 @@ def parse_delta(delta_data):
         elif op_type == OP_ADD:
             data_size = bits_to_num(meta)
             append_data = delta_data.read(data_size)
-            print(append_data)
             operations.append(["OP_ADD", meta, data_size, append_data])
     return operations
 
